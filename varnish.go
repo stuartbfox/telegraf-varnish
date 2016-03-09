@@ -7,24 +7,51 @@ import (
     "fmt"
     "os"
     "os/exec"
+    "strings"
 
     "github.com/influxdata/telegraf"
     "github.com/influxdata/telegraf/plugins/inputs"
 )
 
 type Varnish struct {
-    Ok bool
+    Stats []string `toml:"stats"`
 }
 
 func (s *Varnish) Description() string {
     return "a plugin to collect stats from varnish"
 }
 
+var varnishSampleConfig = `
+  ## By default, telegraf gather stats for 3 metric points.
+  ## Setting stats will remove the defaults
+  stats = ['MAIN.cache_hit', 'MAIN.cache_miss']
+`
+
 func (s *Varnish) SampleConfig() string {
-    return "ok = true # indicate if everything is fine"
+    return varnishSampleConfig
+}
+
+func stringInSlice(str string, list []string) bool {
+    for _, v := range list {
+        if v == str {
+            return true
+        }
+    }
+    return false
 }
 
 func (s *Varnish) Gather(acc telegraf.Accumulator) error {
+
+    var stats []string
+    sections := []string{"LCK","MAIN","MEMPOOL","MGT","SMA","VBE"}
+    fmt.Fprintln(os.Stderr, sections)
+
+    if len(s.Stats) == 0 {
+      stats = []string{"MAIN.cache_hit", "MAIN.cache_miss"}
+    } else {
+      stats = s.Stats
+    }
+
 
     cmdName := "/usr/bin/varnishstat"
     cmdArgs := []string{"-1"}
@@ -39,7 +66,14 @@ func (s *Varnish) Gather(acc telegraf.Accumulator) error {
     scanner := bufio.NewScanner(cmdReader)
     go func() {
         for scanner.Scan() {
-            fmt.Printf("stat is | %s\n", scanner.Text())
+            stat_line := strings.Fields(scanner.Text())
+            if stringInSlice(stat_line[0], stats) {
+                // fmt.Println(stat_line[0], stat_line[2])
+                tmp := strings.Split(stat_line[0], ".")
+                subsect := tmp[1]
+                tags := map[string]string{}
+                tags["name"] = tmp
+            }
         }
     }()
 
