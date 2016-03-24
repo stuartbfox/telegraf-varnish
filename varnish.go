@@ -4,6 +4,7 @@ package varnish
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -43,8 +44,6 @@ func stringInSlice(str string, list []string) bool {
 func (s *Varnish) Gather(acc telegraf.Accumulator) error {
 
 	var stats []string
-	sections := []string{"LCK", "MAIN", "MEMPOOL", "MGT", "SMA", "VBE"}
-	fmt.Fprintln(os.Stderr, sections)
 
 	if len(s.Stats) == 0 {
 		stats = []string{"MAIN.cache_hit", "MAIN.cache_miss", "MAIN.uptime"}
@@ -68,11 +67,12 @@ func (s *Varnish) Gather(acc telegraf.Accumulator) error {
 			stat_line := strings.Fields(scanner.Text())
 			if stringInSlice(stat_line[0], stats) {
 				tmp := strings.Split(stat_line[0], ".")
+				sect := tmp[0]
 				subsect := tmp[1]
-				tags := map[string]string{}
-				tags["name"] = tmp
+				val := stat_line[1]
 			}
 		}
+		acc.AddFields("varnish", fields, tags)
 	}()
 
 	err = cmd.Start()
